@@ -38,6 +38,3 @@ ENV PYTHONPATH="/app/whisper-20250625:$PYTHONPATH"
 
 # Expose port for API
 EXPOSE 8000
-
-# Default command - start the API server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
