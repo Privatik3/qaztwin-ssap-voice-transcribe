@@ -1,0 +1,28 @@
+services:
+  whisper-transcribe:
+    build: .
+    container_name: whisper-transcribe
+    ports:
+      - "${API_PORT:-8000}:8000"
+    environment:
+      - API_PORT=${API_PORT:-8000}
+      - AUDIO_DIR=${AUDIO_DIR:-./audio}
+      - MODEL_SIZE=${MODEL_SIZE:-tiny}
+      - PYTHONPATH=/app/whisper-20250625
+    volumes:
+      - ${AUDIO_DIR:-./audio}:/app/audio:ro
+      - ./whisper-20250625:/app/whisper-20250625:ro
+    working_dir: /app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${API_PORT:-8000}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - qaztwin-net
+
+networks:
+  qaztwin-net:
+    external: true
+    name: ${COMPOSE_NETWORK_NAME:-qaztwin-net}

@@ -1,0 +1,118 @@
+name: Deploy to Production (office)
+
+on:
+  push:
+    branches:
+      - dev
+
+jobs:
+  deploy:
+    runs-on: qaztwin-ssap-zone-slicer-office-local-runner
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Whisper sources (dir and zip)
+        uses: actions/cache@v4
+        with:
+          path: |
+            whisper-20250625
+            whisper-20250625.zip
+          key: whisper-v20250625-${{ runner.os }}
+          restore-keys: |
+            whisper-v20250625-
+
+      - name: Prepare Whisper sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Ensuring Whisper sources exist..."
+          if [ ! -d whisper-20250625 ]; then
+            echo "whisper-20250625 directory not found."
+            if [ ! -f whisper-20250625.zip ]; then
+              echo "No cached zip found; downloading..."
+              curl -L -o whisper-20250625.zip https://github.com/openai/whisper/archive/refs/tags/v20250625.zip
+            else
+              echo "Found cached zip."
+            fi
+            echo "Unzipping archive..."
+            rm -rf whisper-20250625
+            unzip -q -o whisper-20250625.zip
+            # Normalize extracted directory name to whisper-20250625
+            if [ ! -d whisper-20250625 ]; then
+              EXTRACTED_DIR=$(find . -maxdepth 1 -type d -name "whisper*" | grep -E "20250625|v20250625" | head -n 1 | sed 's|^\./||')
+              if [ -n "${EXTRACTED_DIR:-}" ] && [ -d "$EXTRACTED_DIR" ]; then
+                echo "Renaming $EXTRACTED_DIR to whisper-20250625"
+                mv "$EXTRACTED_DIR" whisper-20250625
+              fi
+            fi
+          else
+            echo "whisper-20250625 directory already present (from cache)."
+          fi
+          # Final verification
+          if [ ! -d whisper-20250625 ]; then
+            echo "ERROR: whisper-20250625 directory is missing after preparation." >&2
+            exit 1
+          fi
+          echo "Whisper sources ready."
+
+      - name: Set dev environment variables
+        run: |
+          rm -f .env
+          touch .env
+          #-------------
+          echo "COMPOSE_NETWORK_NAME=qaztwin-ssap-dev-net" >> .env
+          #-------------
+          echo "API_PORT=4104" >> .env
+          echo "MODEL_SIZE=tiny" >> .env
+          echo "AUDIO_DIR=/home/serhii/Public/audio" >> .env
+      - name: Prepare network and host directories (dev)
+        run: |
+          docker network inspect qaztwin-ssap-dev-net >/dev/null 2>&1 || docker network create qaztwin-ssap-dev-net
+
+      - name: Start services
+        run: |
+          docker compose --project-name qaztwin-ssap-dev up --build --force-recreate -d
+
+      - name: Prime cache with current Whisper sources
+        if: always()
+        run: |
+          echo "Listing whisper sources to keep cache hot:"
+          ls -la whisper-20250625 || true
+
+      # Step 3: Wait until the app service is healthy
+      - name: Wait for whisper-transcribe to be healthy
+        run: |
+          set -e
+          echo "Waiting for 'whisper-transcribe' service to become healthy..."
+          health=""
+          for i in {1..60}; do
+            cid=$(docker compose --project-name qaztwin-ssap-dev ps -q whisper-transcribe)
+            if [ -z "$cid" ]; then
+              echo "whisper-transcribe container not found yet; retrying..."
+              sleep 5
+              continue
+            fi
+            status=$(docker inspect -f '{{.State.Status}}' "$cid")
+            health=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$cid")
+            echo "whisper-transcribe status=$status health=$health"
+            if [ "$status" = "running" ] && [ "$health" = "healthy" ]; then
+              echo "whisper-transcribe is healthy."
+              break
+            fi
+            sleep 5
+          done
+          if [ "$health" != "healthy" ]; then
+            echo "whisper-transcribe did not become healthy in time"
+            docker compose --project-name qaztwin-ssap-dev ps
+            exit 1
+          fi
+
+      - name: Show deployment info (Office)
+        run: |
+          echo "✅ Production (office) deployment completed!"
+          echo "🌐 Service URL: http://localhost:${API_PORT}"
+          echo "🔍 Health check: http://localhost:${API_PORT}/health"
+          echo "📊 Container status:"
+          docker compose --project-name qaztwin-ssap-dev ps
