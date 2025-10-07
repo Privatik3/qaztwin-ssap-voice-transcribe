@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: qaztwin-ssap-zone-slicer-office-local-runner
+    runs-on: qaztwin-ssap-voice-transcribe-office-local-runner
 
     steps:
       - name: Checkout code
