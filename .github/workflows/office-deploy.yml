@@ -65,7 +65,7 @@ jobs:
           touch .env
           #-------------
           echo "API_PORT=4104" >> .env
-          echo "MODEL_SIZE=tiny" >> .env
+          echo "MODEL_SIZE=turbo" >> .env
           echo "AUDIO_DIR=/home/serhii/Public/audios" >> .env
       - name: Ensure audio directory exists on host
         run: |
