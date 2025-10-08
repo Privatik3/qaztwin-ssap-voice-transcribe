@@ -75,7 +75,8 @@ jobs:
 
       - name: Check Docker NVIDIA runtime
         run: |
-          echo "Docker runtime summary:" && echo "$SUDO_PASS" | sudo -S docker info | grep -E '(Runtimes|Default Runtime)' || true
+          echo "Docker runtime summary:"
+          echo "$SUDO_PASS" | sudo -S docker info | grep -E '(Runtimes|Default Runtime)' || true
 
       - name: Start services
         run: |
@@ -92,17 +93,15 @@ jobs:
         run: |
           set -e
           echo "Waiting for 'whisper-transcribe' service to become healthy..."
-          health=""
-          DOCKER="echo \"$SUDO_PASS\" | sudo -S docker"
           for i in {1..60}; do
-            cid=$($DOCKER compose --project-name qaztwin-ssap-dev ps -q whisper-transcribe)
+            cid=$(echo "$SUDO_PASS" | sudo -S docker compose --project-name qaztwin-ssap-dev ps -q whisper-transcribe)
             if [ -z "$cid" ]; then
               echo "whisper-transcribe container not found yet; retrying..."
               sleep 5
               continue
             fi
-            status=$($DOCKER inspect -f '{{.State.Status}}' "$cid")
-            health=$($DOCKER inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$cid")
+            status=$(echo "$SUDO_PASS" | sudo -S docker inspect -f '{{.State.Status}}' "$cid")
+            health=$(echo "$SUDO_PASS" | sudo -S docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$cid")
             echo "whisper-transcribe status=$status health=$health"
             if [ "$status" = "running" ] && [ "$health" = "healthy" ]; then
               echo "whisper-transcribe is healthy."
@@ -112,14 +111,13 @@ jobs:
           done
           if [ "$health" != "healthy" ]; then
             echo "whisper-transcribe did not become healthy in time"
-            $DOCKER compose --project-name qaztwin-ssap-dev ps
+            echo "$SUDO_PASS" | sudo -S docker compose --project-name qaztwin-ssap-dev ps
             exit 1
           fi
 
       - name: Verify GPU inside container
         run: |
-          DOCKER="echo \"$SUDO_PASS\" | sudo -S docker"
-          $DOCKER compose --project-name qaztwin-ssap-dev exec -T whisper-transcribe python - <<'PY'
+          echo "$SUDO_PASS" | sudo -S docker compose --project-name qaztwin-ssap-dev exec -T whisper-transcribe python - <<'PY'
           import torch
           print('CUDA available:', torch.cuda.is_available())
           if torch.cuda.is_available():
@@ -128,17 +126,8 @@ jobs:
 
       - name: Show deployment info (Office)
         run: |
-          DOCKER="echo \"$SUDO_PASS\" | sudo -S docker"
           echo "✅ Production (office) deployment completed!"
           echo "🌐 Service URL: http://localhost:${API_PORT}"
           echo "🔍 Health check: http://localhost:${API_PORT}/health"
           echo "📊 Container status:"
-          $DOCKER compose --project-name qaztwin-ssap-dev ps
-
-      - name: Show deployment info (Office)
-        run: |
-          echo "✅ Production (office) deployment completed!"
-          echo "🌐 Service URL: http://localhost:${API_PORT}"
-          echo "🔍 Health check: http://localhost:${API_PORT}/health"
-          echo "📊 Container status:"
-          docker compose --project-name qaztwin-ssap-dev ps
+          echo "$SUDO_PASS" | sudo -S docker compose --project-name qaztwin-ssap-dev ps
