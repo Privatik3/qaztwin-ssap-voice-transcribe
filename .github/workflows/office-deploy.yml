@@ -115,15 +115,6 @@ jobs:
             exit 1
           fi
 
-      - name: Verify GPU inside container
-        run: |
-          echo "$SUDO_PASS" | sudo -S docker compose --project-name qaztwin-ssap-dev exec -T whisper-transcribe python - <<'PY'
-          import torch
-          print('CUDA available:', torch.cuda.is_available())
-          if torch.cuda.is_available():
-              print('GPU:', torch.cuda.get_device_name(0))
-          PY
-
       - name: Show deployment info (Office)
         run: |
           echo "✅ Production (office) deployment completed!"
