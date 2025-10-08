@@ -15,8 +15,9 @@ class TranscribeRequest(BaseModel):
 async def startup_event():
     """Load the Whisper model on startup"""
     global model
-    print("Loading Whisper model...")
-    model = whisper.load_model("tiny")
+    model_size = os.getenv("MODEL_SIZE", "tiny")
+    print(f"Loading Whisper model: {model_size}...")
+    model = whisper.load_model(model_size)
     print("Whisper model loaded successfully!")
 
 @app.get("/health")
