@@ -9,6 +9,8 @@ services:
       - AUDIO_DIR=${AUDIO_DIR:-./audio}
       - MODEL_SIZE=${MODEL_SIZE:-tiny}
       - PYTHONPATH=/app/whisper-20250625
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
     volumes:
       - ${AUDIO_DIR:-./audio}:/app/audio:ro
       - ./whisper-20250625:/app/whisper-20250625:ro
@@ -20,10 +22,10 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    networks:
-      - qaztwin-net
-
-networks:
-  qaztwin-net:
-    external: true
-    name: ${COMPOSE_NETWORK_NAME:-qaztwin-net}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

@@ -8,6 +8,8 @@ on:
 jobs:
   deploy:
     runs-on: qaztwin-ssap-voice-transcribe-office-local-runner
+    env:
+      SUDO_PASS: ${{ secrets.OFFICE_SUDO_PASS }}
 
     steps:
       - name: Checkout code
@@ -62,18 +64,22 @@ jobs:
           rm -f .env
           touch .env
           #-------------
-          echo "COMPOSE_NETWORK_NAME=qaztwin-ssap-dev-net" >> .env
-          #-------------
           echo "API_PORT=4104" >> .env
           echo "MODEL_SIZE=tiny" >> .env
           echo "AUDIO_DIR=/home/serhii/Public/audios" >> .env
-      - name: Prepare network and host directories (dev)
+      - name: Ensure audio directory exists on host
         run: |
-          docker network inspect qaztwin-ssap-dev-net >/dev/null 2>&1 || docker network create qaztwin-ssap-dev-net
+          mkdir -p /home/serhii/Public/audios
+          # copy sample if present in repo (no-op otherwise)
+          [ -f record.mp3 ] && cp -f record.mp3 /home/serhii/Public/audios/ || true
+
+      - name: Check Docker NVIDIA runtime
+        run: |
+          echo "Docker runtime summary:" && echo "$SUDO_PASS" | sudo -S docker info | grep -E '(Runtimes|Default Runtime)' || true
 
       - name: Start services
         run: |
-          docker compose --project-name qaztwin-ssap-dev up --build --force-recreate -d
+          echo "$SUDO_PASS" | sudo -S docker compose --project-name qaztwin-ssap-dev up --build --force-recreate -d
 
       - name: Prime cache with current Whisper sources
         if: always()
@@ -87,15 +93,16 @@ jobs:
           set -e
           echo "Waiting for 'whisper-transcribe' service to become healthy..."
           health=""
+          DOCKER="echo \"$SUDO_PASS\" | sudo -S docker"
           for i in {1..60}; do
-            cid=$(docker compose --project-name qaztwin-ssap-dev ps -q whisper-transcribe)
+            cid=$($DOCKER compose --project-name qaztwin-ssap-dev ps -q whisper-transcribe)
             if [ -z "$cid" ]; then
               echo "whisper-transcribe container not found yet; retrying..."
               sleep 5
               continue
             fi
-            status=$(docker inspect -f '{{.State.Status}}' "$cid")
-            health=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$cid")
+            status=$($DOCKER inspect -f '{{.State.Status}}' "$cid")
+            health=$($DOCKER inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$cid")
             echo "whisper-transcribe status=$status health=$health"
             if [ "$status" = "running" ] && [ "$health" = "healthy" ]; then
               echo "whisper-transcribe is healthy."
@@ -105,9 +112,28 @@ jobs:
           done
           if [ "$health" != "healthy" ]; then
             echo "whisper-transcribe did not become healthy in time"
-            docker compose --project-name qaztwin-ssap-dev ps
+            $DOCKER compose --project-name qaztwin-ssap-dev ps
             exit 1
           fi
+
+      - name: Verify GPU inside container
+        run: |
+          DOCKER="echo \"$SUDO_PASS\" | sudo -S docker"
+          $DOCKER compose --project-name qaztwin-ssap-dev exec -T whisper-transcribe python - <<'PY'
+          import torch
+          print('CUDA available:', torch.cuda.is_available())
+          if torch.cuda.is_available():
+              print('GPU:', torch.cuda.get_device_name(0))
+          PY
+
+      - name: Show deployment info (Office)
+        run: |
+          DOCKER="echo \"$SUDO_PASS\" | sudo -S docker"
+          echo "✅ Production (office) deployment completed!"
+          echo "🌐 Service URL: http://localhost:${API_PORT}"
+          echo "🔍 Health check: http://localhost:${API_PORT}/health"
+          echo "📊 Container status:"
+          $DOCKER compose --project-name qaztwin-ssap-dev ps
 
       - name: Show deployment info (Office)
         run: |
