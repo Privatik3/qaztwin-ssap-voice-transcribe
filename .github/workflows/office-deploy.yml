@@ -82,6 +82,10 @@ jobs:
         run: |
           echo "$SUDO_PASS" | sudo -S docker compose --project-name qaztwin-ssap-dev up --build --force-recreate -d
 
+      - name: Connect to custom network
+        run: |
+          echo "$SUDO_PASS" | sudo -S docker network connect qaztwin-ssap-dev-net whisper-transcribe
+
       - name: Prime cache with current Whisper sources
         if: always()
         run: |
