@@ -37,4 +37,6 @@ RUN mkdir -p /app/audio
 ENV PYTHONPATH="/app/whisper-20250625:$PYTHONPATH"
 
 # Expose port for API
-EXPOSE 8000
+ARG API_PORT=4104
+ENV API_PORT=${API_PORT}
+EXPOSE ${API_PORT}

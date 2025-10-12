@@ -1,11 +1,12 @@
 services:
   whisper-transcribe:
     build: .
+    args:
+      - API_PORT=${API_PORT}
     container_name: whisper-transcribe
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${API_PORT}:${API_PORT}"
     environment:
-      - API_PORT=${API_PORT:-8000}
       - AUDIO_DIR=${AUDIO_DIR:-./audio}
       - MODEL_SIZE=${MODEL_SIZE:-tiny}
       - PYTHONPATH=/app/whisper-20250625
@@ -15,9 +16,9 @@ services:
       - ${AUDIO_DIR:-./audio}:/app/audio:ro
       - ./whisper-20250625:/app/whisper-20250625:ro
     working_dir: /app
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "${API_PORT}"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:${API_PORT}/health"]
       interval: 30s
       timeout: 10s
       retries: 3
