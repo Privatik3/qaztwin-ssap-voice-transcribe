@@ -1,8 +1,9 @@
 services:
   whisper-transcribe:
-    build: .
-    args:
-      - API_PORT=${API_PORT}
+    build:
+      context: .
+      args:
+        - API_PORT=${API_PORT}
     container_name: whisper-transcribe
     ports:
       - "${API_PORT}:${API_PORT}"
